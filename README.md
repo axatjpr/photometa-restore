@@ -22,18 +22,11 @@ When you download your photos from Google Photos using Google Takeout, the metad
 - Python 3.6 or newer
 - Windows operating system (for full timestamp functionality)
 
-### From PyPI
-
-```bash
-pip install photometa-restore
-```
-
-### From Source
+### From Source (Currently Only Available Method)
 
 ```bash
 git clone https://github.com/axatjpr/photometa-restore.git
 cd photometa-restore
-pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -47,25 +40,25 @@ You can launch the GUI by running:
 photometa-restore-gui
 ```
 
-Or if installed from source:
+Or if installed from source without pip:
 
 ```bash
 python run.py
 ```
 
-1. Enter the suffix used for edited photos (default is "editado" for Spanish)
+1. Enter the suffix used for edited photos (default is "edited")
 2. Select the folder where your Google Takeout files are located
 3. Click "Restore Metadata" to begin the process
 
 ### Command Line
 
 ```bash
-photometa-restore /path/to/google/takeout/folder --edited-suffix=editado
+photometa-restore /path/to/google/takeout/folder --edited-suffix=edited
 ```
 
 #### Command-line options:
 
-- `--edited-suffix`: Specify the suffix used for edited photos (default: "editado")
+- `--edited-suffix`: Specify the suffix used for edited photos (default: "edited")
 - `--quiet`: Suppress progress output
 
 ## How It Works
