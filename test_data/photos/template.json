@@ -1,0 +1,12 @@
+{
+    "description": "Default template",
+    "photoTakenTime": {
+        "timestamp": "1614729600",
+        "formatted": "March 3, 2021 12:00:00 PM UTC"
+    },
+    "geoData": {
+        "latitude": 48.8566,
+        "longitude": 2.3522,
+        "altitude": 75.0
+    }
+} 

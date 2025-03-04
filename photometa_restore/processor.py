@@ -24,6 +24,7 @@ from .utils.metadata import (
     convert_to_jpg_if_needed,
     extract_metadata_from_json
 )
+from .utils.metadata_enhanced import MetadataBackup, MetadataTemplate, BatchProcessor
 
 
 class MediaProcessor:
@@ -50,6 +51,11 @@ class MediaProcessor:
         self.media_moved: List[str] = []
         self.success_counter = 0
         self.error_counter = 0
+        
+        # Initialize enhanced metadata handlers
+        self.backup_handler = MetadataBackup(base_path)
+        self.template_handler = MetadataTemplate()
+        self.batch_processor = BatchProcessor(self)
     
     def search_media_file(self, title: str) -> Optional[str]:
         """Search for media file matching the given title.
@@ -321,6 +327,118 @@ class MediaProcessor:
         self.missing_logger.info("\n=== Processing session ended ===")
         
         return self.success_counter, self.error_counter
+
+    def apply_template(self, media_file: str, template_name: str) -> bool:
+        """Apply a metadata template to a media file.
+        
+        Args:
+            media_file: Path to the media file
+            template_name: Name of the template to apply
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            template = self.template_handler.load_template(template_name)
+            return self.apply_metadata(media_file, template)
+        except Exception as e:
+            self.error_logger.error(f"Failed to apply template {template_name} to {media_file}: {str(e)}")
+            return False
+
+    def process_batch(self, files: List[str], progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
+        """Process a batch of files with automatic backup.
+        
+        Args:
+            files: List of files to process
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            Dictionary with processing results
+        """
+        return self.batch_processor.process_batch(files, progress_callback)
+
+    def backup_metadata(self, file_path: str) -> Optional[str]:
+        """Create a backup of file metadata.
+        
+        Args:
+            file_path: Path to the file to backup
+            
+        Returns:
+            Path to backup file if successful, None otherwise
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            return self.backup_handler.create_backup(file_path, metadata)
+        except Exception as e:
+            self.error_logger.error(f"Failed to create backup for {file_path}: {str(e)}")
+            return None
+
+    def restore_from_backup(self, backup_path: str) -> bool:
+        """Restore metadata from a backup file.
+        
+        Args:
+            backup_path: Path to the backup file
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            original_file, metadata = self.backup_handler.restore_from_backup(backup_path)
+            return self.apply_metadata(original_file, metadata)
+        except Exception as e:
+            self.error_logger.error(f"Failed to restore from backup {backup_path}: {str(e)}")
+            return False
+
+    def apply_metadata(self, media_file: str, metadata: Dict[str, Any]) -> bool:
+        """Apply metadata to a media file.
+        
+        Args:
+            media_file: Path to the media file
+            metadata: Metadata to apply
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Extract metadata in the correct format
+            processed_metadata = extract_metadata_from_json(metadata)
+            
+            # Get file extension
+            ext = os.path.splitext(media_file)[1].lower()[1:]
+            
+            # Process EXIF data for supported formats
+            if ext in self.config.EXIF_SUPPORTED_FORMATS:
+                try:
+                    # Convert to JPG if needed
+                    media_file = convert_to_jpg_if_needed(media_file)
+                    
+                    # Set EXIF data if geo data exists
+                    geo_data = processed_metadata['geo_data']
+                    if any(geo_data.values()):
+                        set_exif_data(
+                            media_file,
+                            geo_data['latitude'],
+                            geo_data['longitude'],
+                            geo_data['altitude'],
+                            processed_metadata['timestamp']
+                        )
+                except Exception as e:
+                    self.error_logger.error(f"EXIF data error for {media_file}: {str(e)}")
+                    return False
+            
+            # Set file timestamps
+            try:
+                set_windows_file_time(media_file, processed_metadata['timestamp'])
+            except Exception as e:
+                self.error_logger.error(f"Error setting file time for {media_file}: {str(e)}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.error_logger.error(f"Failed to apply metadata to {media_file}: {str(e)}")
+            return False
 
 
 def process_directory(

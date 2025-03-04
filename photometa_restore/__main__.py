@@ -6,25 +6,17 @@ supporting both GUI and CLI modes.
 """
 
 import sys
-import os
-
+from .cli import cli
+from .gui import run_gui
 
 def main():
-    """Run the application, choosing between GUI and CLI mode."""
-    # Default to GUI mode
-    gui_mode = True
-    
-    # Check for CLI arguments
+    """Run the application in either GUI or CLI mode."""
     if len(sys.argv) > 1:
-        gui_mode = False
-    
-    if gui_mode:
-        from .gui import run_gui
-        run_gui()
+        # If arguments are provided, run in CLI mode
+        cli()
     else:
-        from .cli import run_cli
-        run_cli()
-
+        # No arguments, run in GUI mode
+        run_gui()
 
 if __name__ == "__main__":
     main() 
