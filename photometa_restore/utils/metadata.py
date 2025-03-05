@@ -8,8 +8,7 @@ including EXIF data and file timestamps.
 import os
 import time
 from datetime import datetime
-from fractions import Fraction
-from typing import Tuple, Union, Dict, Any
+from typing import Dict, Any
 
 import piexif
 from win32_setctime import setctime
@@ -29,97 +28,66 @@ def set_windows_file_time(filepath: str, timestamp: int) -> None:
     os.utime(filepath, (mod_time, mod_time))  # Set windows file modification time
 
 
-def convert_to_degrees(value: float, loc: list) -> Tuple[int, int, float, str]:
-    """Convert decimal coordinates into degrees, minutes and seconds tuple.
-    
-    Args:
-        value: Float GPS value.
-        loc: Direction list ["S", "N"] or ["W", "E"].
-        
-    Returns:
-        Tuple of (degrees, minutes, seconds, direction).
-    """
-    if value < 0:
-        loc_value = loc[0]
-    elif value > 0:
-        loc_value = loc[1]
-    else:
-        loc_value = ""
-        
-    abs_value = abs(value)
-    degrees = int(abs_value)
-    t1 = (abs_value - degrees) * 60
-    minutes = int(t1)
-    seconds = round((t1 - minutes) * 60, 5)
-    
-    return (degrees, minutes, seconds, loc_value)
-
-
-def change_to_rational(number: Union[int, float]) -> Tuple[int, int]:
-    """Convert a number to rational representation.
-    
-    Args:
-        number: Number to convert.
-        
-    Returns:
-        Tuple of (numerator, denominator).
-    """
-    f = Fraction(str(number))
-    return (f.numerator, f.denominator)
-
-
-def set_exif_data(filepath: str, lat: float, lng: float, altitude: float, timestamp: int) -> None:
+def set_exif_data(file_path: str, latitude: float, longitude: float, altitude: float, timestamp: int) -> None:
     """Set EXIF data in an image file.
     
     Args:
-        filepath: Path to the image file.
-        lat: Latitude coordinate.
-        lng: Longitude coordinate.
-        altitude: Altitude value.
-        timestamp: Unix timestamp.
+        file_path: Path to the image file
+        latitude: GPS latitude
+        longitude: GPS longitude
+        altitude: GPS altitude in meters
+        timestamp: Unix timestamp
     """
     try:
-        exif_dict = piexif.load(filepath)
+        # Load existing EXIF data or create new
+        try:
+            exif_dict = piexif.load(file_path)
+        except:
+            exif_dict = {
+                "0th": {},
+                "Exif": {},
+                "GPS": {},
+                "1st": {},
+                "thumbnail": None
+            }
         
-        # Set date/time
-        date_time = datetime.fromtimestamp(timestamp).strftime("%Y:%m:%d %H:%M:%S")
-        exif_dict['0th'][piexif.ImageIFD.DateTime] = date_time
-        exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal] = date_time
-        exif_dict['Exif'][piexif.ExifIFD.DateTimeDigitized] = date_time
+        # Convert latitude to degrees/minutes/seconds
+        lat_deg = int(abs(latitude))
+        lat_min = int((abs(latitude) - lat_deg) * 60)
+        lat_sec = int(((abs(latitude) - lat_deg) * 60 - lat_min) * 60 * 100)
+        
+        # Convert longitude to degrees/minutes/seconds
+        lon_deg = int(abs(longitude))
+        lon_min = int((abs(longitude) - lon_deg) * 60)
+        lon_sec = int(((abs(longitude) - lon_deg) * 60 - lon_min) * 60 * 100)
         
         # Set GPS data
-        lat_deg = convert_to_degrees(lat, ["S", "N"])
-        lng_deg = convert_to_degrees(lng, ["W", "E"])
-        
-        exiv_lat = (
-            change_to_rational(lat_deg[0]),
-            change_to_rational(lat_deg[1]),
-            change_to_rational(lat_deg[2])
-        )
-        
-        exiv_lng = (
-            change_to_rational(lng_deg[0]),
-            change_to_rational(lng_deg[1]),
-            change_to_rational(lng_deg[2])
-        )
-        
-        gps_ifd = {
+        exif_dict["GPS"] = {
             piexif.GPSIFD.GPSVersionID: (2, 0, 0, 0),
-            piexif.GPSIFD.GPSAltitudeRef: 1,
-            piexif.GPSIFD.GPSAltitude: change_to_rational(round(altitude, 2)),
-            piexif.GPSIFD.GPSLatitudeRef: lat_deg[3],
-            piexif.GPSIFD.GPSLatitude: exiv_lat,
-            piexif.GPSIFD.GPSLongitudeRef: lng_deg[3],
-            piexif.GPSIFD.GPSLongitude: exiv_lng,
+            piexif.GPSIFD.GPSLatitudeRef: 'N' if latitude >= 0 else 'S',
+            piexif.GPSIFD.GPSLatitude: ((lat_deg, 1), (lat_min, 1), (lat_sec, 100)),
+            piexif.GPSIFD.GPSLongitudeRef: 'E' if longitude >= 0 else 'W',
+            piexif.GPSIFD.GPSLongitude: ((lon_deg, 1), (lon_min, 1), (lon_sec, 100)),
+            piexif.GPSIFD.GPSAltitudeRef: 1 if altitude < 0 else 0,  # 0 = above sea level
+            piexif.GPSIFD.GPSAltitude: (int(abs(altitude) * 10), 10)
         }
         
-        exif_dict['GPS'] = gps_ifd
+        # Set date/time
+        try:
+            dt = datetime.fromtimestamp(timestamp)
+            date_str = dt.strftime("%Y:%m:%d %H:%M:%S")
+            exif_dict["0th"][piexif.ImageIFD.DateTime] = date_str
+            exif_dict["Exif"][piexif.ExifIFD.DateTimeOriginal] = date_str
+            exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized] = date_str
+        except Exception as e:
+            print(f"Warning: Could not set date/time EXIF for {file_path}: {str(e)}")
         
-        # Write EXIF data to file
+        # Save EXIF data
         exif_bytes = piexif.dump(exif_dict)
-        piexif.insert(exif_bytes, filepath)
+        piexif.insert(exif_bytes, file_path)
+        
     except Exception as e:
-        raise Exception(f"Error setting EXIF data: {str(e)}")
+        raise Exception(f"Error setting EXIF data for {file_path}: {str(e)}")
 
 
 def convert_to_jpg_if_needed(filepath: str) -> str:

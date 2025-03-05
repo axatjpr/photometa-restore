@@ -1,0 +1,13 @@
+{
+    "title": "test_image_geo.jpg",
+    "description": "Test image with geo data",
+    "photoTakenTime": {
+        "timestamp": "1614556800",
+        "formatted": "March 1, 2021 12:00:00 PM UTC"
+    },
+    "geoData": {
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+        "altitude": 10.0
+    }
+} 
