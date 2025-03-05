@@ -9,6 +9,7 @@ import os
 import json
 import logging
 from typing import Dict, List, Tuple, Optional, Any, Callable
+from pathlib import Path
 
 from .config import get_config
 from .utils.logging_utils import setup_logging
@@ -25,6 +26,7 @@ from .utils.metadata import (
     extract_metadata_from_json
 )
 from .utils.metadata_enhanced import MetadataBackup, MetadataTemplate, BatchProcessor
+from .utils.validation import validate_metadata_file, FileValidator, ValidationResult
 
 
 class MediaProcessor:
@@ -38,14 +40,14 @@ class MediaProcessor:
             edited_suffix: Suffix used for edited media files (default from config if None).
         """
         self.config = get_config()
-        self.base_path = base_path
+        self.base_path = Path(base_path).resolve()
         self.edited_suffix = edited_suffix or self.config.DEFAULT_EDITED_SUFFIX
         
         # Setup output directories
-        self.matched_media_dir, self.edited_raw_dir = create_required_folders(base_path)
+        self.matched_media_dir, self.edited_raw_dir = create_required_folders(str(self.base_path))
         
         # Setup logging
-        self.error_logger, self.missing_logger = setup_logging(base_path)
+        self.error_logger, self.missing_logger = setup_logging(str(self.base_path))
         
         # Track processed files
         self.media_moved: List[str] = []
@@ -53,7 +55,7 @@ class MediaProcessor:
         self.error_counter = 0
         
         # Initialize enhanced metadata handlers
-        self.backup_handler = MetadataBackup(base_path)
+        self.backup_handler = MetadataBackup(str(self.base_path))
         self.template_handler = MetadataTemplate()
         self.batch_processor = BatchProcessor(self)
     
@@ -68,7 +70,6 @@ class MediaProcessor:
         """
         title = fix_title(title)
         
-        # Try to find edited version of the file
         try:
             # Split filename and extension
             if '.' in title:
@@ -78,90 +79,101 @@ class MediaProcessor:
                 name = title
                 ext = ""
             
+            # Define search paths
+            search_paths = [
+                self.base_path,
+                Path(self.matched_media_dir),
+                Path(self.edited_raw_dir)
+            ]
+            
             # Check for edited version with suffix
             if ext:
                 edited_name = f"{name}-{self.edited_suffix}.{ext}"
             else:
                 edited_name = f"{name}-{self.edited_suffix}"
+            
+            # Search in all paths
+            for search_path in search_paths:
+                # Check for edited version
+                edited_path = search_path / edited_name
+                if edited_path.exists():
+                    # If found in base path, move original to edited_raw if it exists
+                    if search_path == self.base_path:
+                        orig_path = self.base_path / title
+                        if orig_path.exists():
+                            safe_move_file(str(orig_path), str(Path(self.edited_raw_dir) / title))
+                    return edited_name
                 
-            edited_path = os.path.join(self.base_path, edited_name)
-            
-            if os.path.exists(edited_path):
-                # Move original to edited_raw_dir if we find the edited version
-                orig_path = os.path.join(self.base_path, title)
-                if os.path.exists(orig_path):
-                    safe_move_file(orig_path, os.path.join(self.edited_raw_dir, title))
-                return edited_name
-            
-            # Check for version with (1) suffix
-            if ext:
-                alt_name = f"{name}(1).{ext}"
-            else:
-                alt_name = f"{name}(1)"
-                
-            alt_path = os.path.join(self.base_path, alt_name)
-            
-            if os.path.exists(alt_path) and not os.path.exists(os.path.join(self.base_path, f"{title}(1).json")):
-                # Move original to edited_raw_dir if we find alt version
-                orig_path = os.path.join(self.base_path, title)
-                if os.path.exists(orig_path):
-                    safe_move_file(orig_path, os.path.join(self.edited_raw_dir, title))
-                return alt_name
-            
-            # Check for original version
-            orig_path = os.path.join(self.base_path, title)
-            if os.path.exists(orig_path):
-                return title
-            
-            # Check for possible name conflicts and add suffix if needed
-            alt_name = check_if_same_name(title, title, self.media_moved, 1)
-            alt_path = os.path.join(self.base_path, alt_name)
-            if os.path.exists(alt_path):
-                return alt_name
-            
-            # Try with truncated title (Google sometimes limits to 47 chars)
-            if len(name) > 47:
-                short_name = name[:47]
-                
+                # Check for version with (1) suffix
                 if ext:
-                    short_title = f"{short_name}.{ext}"
-                    # Try similar patterns with the short title
-                    short_edited_name = f"{short_name}-{self.edited_suffix}.{ext}"
+                    alt_name = f"{name}(1).{ext}"
                 else:
-                    short_title = short_name
-                    short_edited_name = f"{short_name}-{self.edited_suffix}"
-                    
-                short_edited_path = os.path.join(self.base_path, short_edited_name)
+                    alt_name = f"{name}(1)"
                 
-                if os.path.exists(short_edited_path):
-                    orig_path = os.path.join(self.base_path, short_title)
-                    if os.path.exists(orig_path):
-                        safe_move_file(orig_path, os.path.join(self.edited_raw_dir, short_title))
-                    return short_edited_name
-                
-                if ext:
-                    short_alt_name = f"{short_name}(1).{ext}"
-                else:
-                    short_alt_name = f"{short_name}(1)"
-                    
-                short_alt_path = os.path.join(self.base_path, short_alt_name)
-                
-                if os.path.exists(short_alt_path):
-                    orig_path = os.path.join(self.base_path, short_title)
-                    if os.path.exists(orig_path):
-                        safe_move_file(orig_path, os.path.join(self.edited_raw_dir, short_title))
-                    return short_alt_name
-                
-                short_orig_path = os.path.join(self.base_path, short_title)
-                if os.path.exists(short_orig_path):
-                    return short_title
-                
-                alt_name = check_if_same_name(short_title, short_title, self.media_moved, 1)
-                alt_path = os.path.join(self.base_path, alt_name)
-                if os.path.exists(alt_path):
+                alt_path = search_path / alt_name
+                if alt_path.exists() and not (search_path / f"{title}(1).json").exists():
+                    # If found in base path, move original to edited_raw if it exists
+                    if search_path == self.base_path:
+                        orig_path = self.base_path / title
+                        if orig_path.exists():
+                            safe_move_file(str(orig_path), str(Path(self.edited_raw_dir) / title))
                     return alt_name
+                
+                # Check for original version
+                orig_path = search_path / title
+                if orig_path.exists():
+                    return title
+                
+                # Check for possible name conflicts
+                alt_name = check_if_same_name(title, title, self.media_moved, 1)
+                alt_path = search_path / alt_name
+                if alt_path.exists():
+                    return alt_name
+                
+                # Try with truncated title (Google sometimes limits to 47 chars)
+                if len(name) > 47:
+                    short_name = name[:47]
+                    
+                    if ext:
+                        short_title = f"{short_name}.{ext}"
+                        short_edited_name = f"{short_name}-{self.edited_suffix}.{ext}"
+                    else:
+                        short_title = short_name
+                        short_edited_name = f"{short_name}-{self.edited_suffix}"
+                    
+                    short_edited_path = search_path / short_edited_name
+                    if short_edited_path.exists():
+                        # If found in base path, move original to edited_raw if it exists
+                        if search_path == self.base_path:
+                            orig_path = search_path / short_title
+                            if orig_path.exists():
+                                safe_move_file(str(orig_path), str(Path(self.edited_raw_dir) / short_title))
+                        return short_edited_name
+                    
+                    if ext:
+                        short_alt_name = f"{short_name}(1).{ext}"
+                    else:
+                        short_alt_name = f"{short_name}(1)"
+                    
+                    short_alt_path = search_path / short_alt_name
+                    if short_alt_path.exists():
+                        # If found in base path, move original to edited_raw if it exists
+                        if search_path == self.base_path:
+                            orig_path = search_path / short_title
+                            if orig_path.exists():
+                                safe_move_file(str(orig_path), str(Path(self.edited_raw_dir) / short_title))
+                        return short_alt_name
+                    
+                    short_orig_path = search_path / short_title
+                    if short_orig_path.exists():
+                        return short_title
+                    
+                    alt_name = check_if_same_name(short_title, short_title, self.media_moved, 1)
+                    alt_path = search_path / alt_name
+                    if alt_path.exists():
+                        return alt_name
             
-            # No matching file found
+            # No matching file found in any location
             return None
             
         except Exception as e:
@@ -181,11 +193,27 @@ class MediaProcessor:
             bool: True if processing was successful, False otherwise.
         """
         try:
-            # Load JSON data
-            with open(json_file_path, encoding="utf8") as f:
+            # Convert to Path object and resolve
+            json_path = Path(json_file_path).resolve()
+            
+            # Skip if already processed (JSON file no longer exists)
+            if not json_path.exists():
+                return True
+            
+            # Validate metadata file
+            validation_result = validate_metadata_file(str(json_path), str(self.base_path))
+            if not validation_result.is_valid:
+                for error in validation_result.errors:
+                    self.error_logger.error(f"Validation error in {json_file_path}: {error}")
+                for warning in validation_result.warnings:
+                    self.error_logger.warning(f"Validation warning in {json_file_path}: {warning}")
+                self.error_counter += 1
+                return False
+            
+            # Load and extract metadata
+            with open(json_path, encoding="utf8") as f:
                 json_data = json.load(f)
             
-            # Extract metadata
             metadata = extract_metadata_from_json(json_data)
             title_original = metadata['title']
             
@@ -198,36 +226,55 @@ class MediaProcessor:
                 self.error_counter += 1
                 return False
             
-            # Get full path to media file
-            media_path = os.path.join(self.base_path, media_title)
+            # Get full path to media file and validate
+            media_path = None
+            search_paths = [
+                self.base_path,
+                Path(self.matched_media_dir),
+                Path(self.edited_raw_dir)
+            ]
             
-            if not os.path.exists(media_path):
+            # Find the actual file location
+            for search_path in search_paths:
+                test_path = (search_path / media_title).resolve()
+                if test_path.exists():
+                    media_path = test_path
+                    break
+            
+            if not media_path:
                 self.missing_logger.info(media_title)
-                print(f"File not found: {media_path}")
+                print(f"File not found: {media_title}")
+                self.error_counter += 1
+                return False
+            
+            # Validate file access
+            file_validator = FileValidator(str(self.base_path))
+            is_valid, error = file_validator.validate_file(str(media_path))
+            
+            if not is_valid:
+                self.missing_logger.info(media_title)
+                print(f"File validation failed: {error}")
                 self.error_counter += 1
                 return False
             
             # Get the timestamp
             timestamp = metadata['timestamp']
-            print(media_path)
+            print(str(media_path))
             
             # Process EXIF data for supported formats
-            ext = ""
-            if '.' in media_title:
-                _, ext = media_title.rsplit('.', 1)
-                ext = ext.casefold()
-                
+            ext = media_path.suffix.lower()[1:] if media_path.suffix else ""
+            
             if ext in self.config.EXIF_SUPPORTED_FORMATS:
                 try:
                     # Convert to JPG if needed
-                    media_path = convert_to_jpg_if_needed(media_path)
+                    media_path = Path(convert_to_jpg_if_needed(str(media_path)))
                     
                     # Set EXIF data if geo data exists
                     geo_data = metadata['geo_data']
                     if any(geo_data.values()):
                         try:
                             set_exif_data(
-                                media_path,
+                                str(media_path),
                                 geo_data['latitude'],
                                 geo_data['longitude'],
                                 geo_data['altitude'],
@@ -248,7 +295,7 @@ class MediaProcessor:
             
             # Set file timestamps
             try:
-                set_windows_file_time(media_path, timestamp)
+                set_windows_file_time(str(media_path), timestamp)
             except Exception as e:
                 error_msg = f"Error setting file time for {media_path}: {str(e)}"
                 print(error_msg)
@@ -256,9 +303,9 @@ class MediaProcessor:
             
             # Move file and delete JSON
             try:
-                dest_path = os.path.join(self.matched_media_dir, os.path.basename(media_path))
-                if safe_move_file(media_path, dest_path):
-                    os.remove(json_file_path)
+                dest_path = Path(self.matched_media_dir) / media_path.name
+                if safe_move_file(str(media_path), str(dest_path)):
+                    os.remove(json_path)
                     self.media_moved.append(media_title)
                     self.success_counter += 1
                     return True

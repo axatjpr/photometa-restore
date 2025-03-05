@@ -42,6 +42,8 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+.pytest_cache/
+pytest.xml
 
 # Translations
 *.mo
@@ -97,12 +99,16 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+dmypy.json
+dmypy.sock
 
 # IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
+*.sublime-workspace
+*.sublime-project
 
 # Windows specific
 Thumbs.db
@@ -121,3 +127,31 @@ Icon
 .TemporaryItems
 .Trashes
 .VolumeIcon.icns
+
+# Project specific
+test_data/benchmark_test_*/
+test_data/test_scenarios/MatchedMedia/
+test_data/test_scenarios/EditedRaw/
+test_data/test_scenarios/metadata_backups/
+test_data/test_scenarios/logs/
+*.jpg.json
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+
+# Exclude test fixtures and samples
+!tests/fixtures/images/*.jpg
+!tests/fixtures/images/*.jpeg
+!samples/*.jpg
+!samples/*.jpeg
+
+# Metadata files
+*.exif
+*.xmp
+metadata_backups/

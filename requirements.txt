@@ -5,4 +5,5 @@ win32-setctime>=1.1.0
 exif>=1.6.0
 click>=8.0.0
 tqdm>=4.65.0
-pathlib>=1.0.1 
+pathlib>=1.0.1
+psutil>=5.9.0 

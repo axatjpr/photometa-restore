@@ -1,0 +1,13 @@
+{
+    "title": "test_image_old.jpg",
+    "description": "Test image with old timestamp",
+    "photoTakenTime": {
+        "timestamp": "1577836800",
+        "formatted": "January 1, 2020 12:00:00 PM UTC"
+    },
+    "geoData": {
+        "latitude": 0,
+        "longitude": 0,
+        "altitude": 0
+    }
+} 

@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from .config import get_config
 from .processor import process_directory, MediaProcessor
+from .utils.benchmarking import PerformanceMonitor, create_test_dataset
 
 
 def cli_progress_callback(progress: float, success_count: int, error_count: int) -> None:
@@ -150,6 +151,103 @@ def restore(directory: str, backup_file: str):
         click.echo("Metadata restored successfully.")
     else:
         click.echo("Failed to restore metadata.", err=True)
+
+
+@cli.group()
+def benchmark():
+    """Benchmark commands for performance testing."""
+    pass
+
+
+@benchmark.command()
+@click.argument('directory', type=click.Path(exists=True))
+@click.option('--num-files', '-n', type=int, default=100, help='Number of test files to create')
+@click.option('--file-size', '-s', type=int, default=100, help='Size of each file in KB')
+@click.option('--with-metadata/--no-metadata', default=True, help='Create metadata files')
+def create_dataset(directory: str, num_files: int, file_size: int, with_metadata: bool):
+    """Create a test dataset for benchmarking."""
+    test_dir = create_test_dataset(directory, num_files, file_size, with_metadata)
+    click.echo(f"Created test dataset at: {test_dir}")
+    click.echo(f"Number of files: {num_files}")
+    click.echo(f"File size: {file_size}KB")
+    click.echo(f"Metadata files: {'Yes' if with_metadata else 'No'}")
+
+
+@benchmark.command()
+@click.argument('directory', type=click.Path(exists=True))
+@click.option('--operation', '-o', type=click.Choice(['batch', 'single', 'template']), default='batch')
+@click.option('--iterations', '-i', type=int, default=1, help='Number of test iterations')
+def run(directory: str, operation: str, iterations: int):
+    """Run performance benchmarks."""
+    monitor = PerformanceMonitor()
+    
+    for i in range(iterations):
+        click.echo(f"\nRunning iteration {i+1}/{iterations}...")
+        
+        # Start monitoring
+        monitor.start_operation()
+        
+        # Get list of files
+        json_files = [f for f in os.listdir(directory) if f.endswith('.json')]
+        total_files = len(json_files)
+        
+        if total_files == 0:
+            click.echo("No JSON files found in directory.")
+            return
+        
+        processor = MediaProcessor(directory)
+        success_count = 0
+        
+        with tqdm(total=total_files) as pbar:
+            if operation == 'batch':
+                # Batch processing
+                results = processor.process_batch(
+                    [os.path.join(directory, f) for f in json_files],
+                    progress_callback=lambda p: pbar.update(1)
+                )
+                success_count = len(results['successful'])
+            
+            elif operation == 'single':
+                # Single file processing
+                for json_file in json_files:
+                    if processor.process_json_file(os.path.join(directory, json_file)):
+                        success_count += 1
+                    pbar.update(1)
+            
+            elif operation == 'template':
+                # Template processing
+                template_name = "benchmark_template"
+                processor.template_handler.save_template(template_name, {
+                    "description": "Benchmark template",
+                    "photoTakenTime": {
+                        "timestamp": "1614729600",
+                        "formatted": "March 3, 2021 12:00:00 PM UTC"
+                    },
+                    "geoData": {
+                        "latitude": 48.8566,
+                        "longitude": 2.3522,
+                        "altitude": 75.0
+                    }
+                })
+                
+                for json_file in json_files:
+                    if processor.apply_template(os.path.join(directory, json_file), template_name):
+                        success_count += 1
+                    pbar.update(1)
+        
+        # Record metrics
+        monitor.end_operation(total_files, success_count, f"{operation}_process")
+    
+    # Generate and display report
+    click.echo("\n" + monitor.generate_report(f"{operation}_process"))
+
+
+@benchmark.command()
+@click.option('--operation', '-o', type=str, help='Filter by operation type')
+def report(operation: Optional[str]):
+    """Display benchmark reports."""
+    monitor = PerformanceMonitor()
+    click.echo(monitor.generate_report(operation))
 
 
 if __name__ == '__main__':
