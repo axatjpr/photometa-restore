@@ -1,5 +1,7 @@
 # PhotoMeta Restore
 
+![CI Status](https://github.com/axatjpr/photometa-restore/workflows/PhotoMeta%20CI/badge.svg)
+
 A powerful tool to restore metadata from Google Takeout JSON files to their corresponding media files.
 
 ## Overview
