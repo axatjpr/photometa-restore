@@ -106,7 +106,13 @@ def create_window() -> sg.Window:
                 resample_method = Image.ANTIALIAS
             else:
                 # Fallback to a resampling method available in all versions
-                resample_method = Image.BICUBIC
+                # Use Image.Resampling.BICUBIC for newer Pillow versions or fallback to a numeric constant
+                try:
+                    from PIL.Image import Resampling
+                    resample_method = Resampling.BICUBIC
+                except ImportError:
+                    # Older versions of Pillow used integer constants
+                    resample_method = 3  # BICUBIC constant value
                 
             icon_image = icon_image.resize((64, 64), resample=resample_method)
             # Convert to bytes for PySimpleGUI

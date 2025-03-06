@@ -178,6 +178,7 @@ class BatchProcessor:
                     progress_callback((i + 1) / total_files)
                     
             except Exception as e:
-                results["failed"].append((file_path, str(e)))
+                results["failed"].append(file_path)
+                print(f"Error processing {file_path}: {str(e)}")
         
         return results 
