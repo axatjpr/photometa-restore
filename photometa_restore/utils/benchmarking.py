@@ -63,7 +63,7 @@ class PerformanceMonitor:
         """Start monitoring an operation."""
         self.start_time = time.time()
         self.initial_memory = self.process.memory_info().rss / 1024 / 1024  # MB
-        self.cpu_times = []
+        self.cpu_times: List[float] = []
         
     def record_cpu(self) -> None:
         """Record current CPU usage."""

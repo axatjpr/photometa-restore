@@ -45,8 +45,8 @@ class MetadataValidator:
     
     def reset(self) -> None:
         """Reset validation state."""
-        self.errors = []
-        self.warnings = []
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
     
     def validate_metadata(self, metadata: Dict[str, Any]) -> ValidationResult:
         """Validate metadata structure and content.

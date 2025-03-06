@@ -7,8 +7,8 @@ This module provides a graphical user interface for the PhotoMeta Restore applic
 import os
 import sys
 import PySimpleGUI as sg
-from typing import Optional
-from PIL import Image
+from typing import Optional, Any, cast
+from PIL import Image, ImageFile
 import io
 
 from .config import get_config
@@ -99,8 +99,15 @@ def create_window() -> sg.Window:
     if icon_path:
         try:
             icon_image = Image.open(icon_path)
-            # Use LANCZOS if available, fallback to ANTIALIAS for older Pillow versions
-            resample_method = getattr(Image, 'LANCZOS', Image.ANTIALIAS)
+            # Handle different versions of Pillow by checking for available resampling methods
+            if hasattr(Image, 'LANCZOS'):
+                resample_method = Image.LANCZOS
+            elif hasattr(Image, 'ANTIALIAS'):
+                resample_method = Image.ANTIALIAS
+            else:
+                # Fallback to a resampling method available in all versions
+                resample_method = Image.BICUBIC
+                
             icon_image = icon_image.resize((64, 64), resample=resample_method)
             # Convert to bytes for PySimpleGUI
             bio = io.BytesIO()
