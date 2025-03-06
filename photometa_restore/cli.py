@@ -7,9 +7,10 @@ This module provides a command-line interface for PhotoMeta Restore.
 import os
 import sys
 import argparse
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import click
 from tqdm import tqdm
+import json
 
 from .config import get_config
 from .processor import process_directory, MediaProcessor
@@ -29,7 +30,7 @@ def cli_progress_callback(progress: float, success_count: int, error_count: int)
     sys.stdout.flush()
 
 
-def show_progress(progress: float, success: int, total: int):
+def show_progress(progress: float, success: int, total: int) -> None:
     """Show progress bar for batch processing."""
     with tqdm(total=total) as pbar:
         pbar.update(int(progress * total))
@@ -37,16 +38,16 @@ def show_progress(progress: float, success: int, total: int):
 
 
 @click.group()
-def cli():
-    """PhotoMeta Restore - Restore metadata to your photos."""
+def cli() -> None:
+    """PhotoMeta Restore CLI - restore metadata from Google Takeout."""
     pass
 
 
 @cli.command()
 @click.argument('directory', type=click.Path(exists=True))
 @click.option('--edited-suffix', '-e', help='Suffix for edited files')
-def process(directory: str, edited_suffix: str):
-    """Process a directory to restore metadata."""
+def process(directory: str, edited_suffix: str) -> None:
+    """Process all JSON files in a directory."""
     success, errors = process_directory(
         directory,
         edited_suffix=edited_suffix,
@@ -100,16 +101,15 @@ def apply_template(directory: str, template_name: str, files: List[str]):
 @click.argument('directory', type=click.Path(exists=True))
 @click.argument('template_name', type=str)
 @click.argument('metadata_file', type=click.Path(exists=True))
-def save_template(directory: str, template_name: str, metadata_file: str):
-    """Save a metadata file as a template."""
+def save_template(directory: str, template_name: str, metadata_file: str) -> None:
+    """Save metadata from a file as a template."""
     processor = MediaProcessor(directory)
-    try:
-        with open(metadata_file, 'r') as f:
-            metadata = f.read()
-        processor.template_handler.save_template(template_name, metadata)
-        click.echo(f"Template '{template_name}' saved successfully.")
-    except Exception as e:
-        click.echo(f"Error saving template: {str(e)}", err=True)
+    
+    with open(metadata_file, 'r') as f:
+        metadata = json.load(f)
+    
+    processor.template_handler.save_template(template_name, metadata)
+    click.echo(f"Template '{template_name}' saved successfully.")
 
 
 @cli.command()

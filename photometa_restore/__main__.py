@@ -9,7 +9,7 @@ import sys
 from .cli import cli
 from .gui import run_gui
 
-def main():
+def main() -> None:
     """Run the application in either GUI or CLI mode."""
     if len(sys.argv) > 1:
         # If arguments are provided, run in CLI mode

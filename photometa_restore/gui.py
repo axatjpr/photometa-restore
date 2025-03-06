@@ -8,6 +8,8 @@ import os
 import sys
 import PySimpleGUI as sg
 from typing import Optional
+from PIL import Image
+import io
 
 from .config import get_config
 from .processor import process_directory
@@ -83,16 +85,32 @@ def create_window() -> sg.Window:
     icon_path = get_icon_path()
     
     # Create window with a clean professional look
-    return sg.Window(
+    window = sg.Window(
         'PhotoMeta Restore', 
         layout, 
         finalize=True,
         element_justification='center',
         font=main_font,
         resizable=False,
-        margins=(25, 25),
-        icon=icon_path
+        margins=(25, 25)
     )
+    
+    # Open and resize the icon if available
+    if icon_path:
+        try:
+            icon_image = Image.open(icon_path)
+            # Use LANCZOS if available, fallback to ANTIALIAS for older Pillow versions
+            resample_method = getattr(Image, 'LANCZOS', Image.ANTIALIAS)
+            icon_image = icon_image.resize((64, 64), resample=resample_method)
+            # Convert to bytes for PySimpleGUI
+            bio = io.BytesIO()
+            icon_image.save(bio, format="PNG")
+            icon_data = bio.getvalue()
+            window.set_icon(icon_data)
+        except Exception as e:
+            print(f"Error loading icon: {e}")
+    
+    return window
 
 
 def update_progress(window: sg.Window, progress: float, success_count: int, error_count: int) -> None:
@@ -141,20 +159,6 @@ def run_gui() -> None:
     # Create window with icon
     config = get_config()
     window = create_window()
-    
-    # Set window icon explicitly after creation
-    if icon_path := get_icon_path():
-        try:
-            # On Windows, set the taskbar icon
-            if hasattr(window, 'TKroot'):
-                from PIL import Image, ImageTk
-                
-                img = Image.open(icon_path)
-                img = img.resize((32, 32), Image.LANCZOS)  # Resize to standard size
-                photo = ImageTk.PhotoImage(img)
-                window.TKroot.iconphoto(True, photo)
-        except Exception as e:
-            print(f"Failed to set taskbar icon: {e}")
     
     # Color constants for status messages
     success_color = "#38A169"  # Green
