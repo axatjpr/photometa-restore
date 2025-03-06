@@ -7,7 +7,7 @@ This module provides a graphical user interface for the PhotoMeta Restore applic
 import os
 import sys
 import PySimpleGUI as sg
-from typing import Optional, Any, cast
+from typing import Optional, Any, cast, Union
 from PIL import Image, ImageFile
 import io
 
@@ -114,10 +114,11 @@ def create_window() -> sg.Window:
                     # Older versions of Pillow used integer constants
                     resample_method = 3  # BICUBIC constant value
                 
-            icon_image = icon_image.resize((64, 64), resample=resample_method)
+            # Cast to proper type to avoid type errors
+            resized_image: Image.Image = icon_image.resize((64, 64), resample=resample_method)
             # Convert to bytes for PySimpleGUI
             bio = io.BytesIO()
-            icon_image.save(bio, format="PNG")
+            resized_image.save(bio, format="PNG")
             icon_data = bio.getvalue()
             window.set_icon(icon_data)
         except Exception as e:
