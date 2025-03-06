@@ -6,6 +6,7 @@ This module provides access to the application icon.
 
 import os
 from pathlib import Path
+from typing import Optional, Union
 
 def get_icon_path():
     """Get path to the icon file.
@@ -25,3 +26,19 @@ def get_icon_path():
         return None
     
     return icon_file 
+
+def get_app_icon() -> Optional[Union[bytes, str]]:
+    """Get the application icon as bytes.
+    
+    Returns:
+        Bytes representation of the icon or None if not found
+    """
+    # Check for icon in the resources directory
+    icon_path = os.path.join(os.path.dirname(__file__), "app_icon.png")
+    
+    if os.path.exists(icon_path):
+        with open(icon_path, "rb") as icon_file:
+            return icon_file.read()
+    
+    # Fallback to embedded icon if file doesn't exist
+    return None 

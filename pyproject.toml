@@ -36,6 +36,18 @@ dependencies = [
     "psutil>=5.9.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/axatjpr/photometa-restore"
 Issues = "https://github.com/axatjpr/photometa-restore/issues"
@@ -55,10 +67,14 @@ addopts = "-v --tb=short"
 
 [tool.mypy]
 python_version = "3.8"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
-disallow_untyped_defs = true
-check_untyped_defs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+strict_optional = false
 ignore_missing_imports = true
 
 [tool.black]

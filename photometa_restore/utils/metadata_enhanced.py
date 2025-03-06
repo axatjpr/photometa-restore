@@ -11,29 +11,29 @@ import os
 import json
 import shutil
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Dict, List, Optional, Any, Tuple, Callable, Union
 from pathlib import Path
 
 
 class MetadataBackup:
-    """Handles metadata backup and restoration operations."""
+    """Manages metadata backups for restoring later."""
     
     def __init__(self, base_path: str):
-        """Initialize metadata backup handler.
+        """Initialize the backup manager.
         
         Args:
-            base_path: Base directory for storing backups
+            base_path: Base directory for operations
         """
         self.base_path = Path(base_path)
         self.backup_dir = self.base_path / "metadata_backups"
         self._ensure_backup_dir()
     
-    def _ensure_backup_dir(self):
-        """Ensure backup directory exists."""
+    def _ensure_backup_dir(self) -> None:
+        """Create backup directory if it doesn't exist."""
         os.makedirs(self.backup_dir, exist_ok=True)
     
     def create_backup(self, file_path: str, metadata: Dict[str, Any]) -> str:
-        """Create a backup of file metadata.
+        """Create a backup of metadata.
         
         Args:
             file_path: Path to the original file
@@ -42,20 +42,20 @@ class MetadataBackup:
         Returns:
             Path to the backup file
         """
-        file_path = Path(file_path)
+        file_path_obj = Path(file_path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"{file_path.stem}_{timestamp}.json"
+        backup_name = f"{file_path_obj.stem}_{timestamp}.json"
         backup_path = self.backup_dir / backup_name
         
-        backup_data = {
-            "original_file": str(file_path),
-            "backup_date": timestamp,
-            "metadata": metadata
-        }
-        
-        with open(backup_path, 'w', encoding='utf-8') as f:
+        with open(backup_path, 'w') as f:
+            # Store original filepath and metadata
+            backup_data = {
+                "original_file": str(file_path),
+                "metadata": metadata,
+                "timestamp": timestamp
+            }
             json.dump(backup_data, f, indent=2)
-            
+        
         return str(backup_path)
     
     def restore_from_backup(self, backup_path: str) -> Tuple[str, Dict[str, Any]]:
@@ -74,22 +74,25 @@ class MetadataBackup:
 
 
 class MetadataTemplate:
-    """Handles metadata templates for consistent metadata application."""
+    """Manages metadata templates for batch application."""
     
     def __init__(self, templates_dir: Optional[str] = None):
-        """Initialize metadata template handler.
+        """Initialize the template manager.
         
         Args:
-            templates_dir: Directory for storing templates
+            templates_dir: Optional custom directory for templates
         """
-        self.templates_dir = Path(templates_dir) if templates_dir else Path.home() / ".photometa_restore" / "templates"
+        if templates_dir:
+            self.templates_dir = Path(templates_dir)
+        else:
+            self.templates_dir = Path.home() / ".photometa_restore" / "templates"
         self._ensure_templates_dir()
     
-    def _ensure_templates_dir(self):
-        """Ensure templates directory exists."""
+    def _ensure_templates_dir(self) -> None:
+        """Create templates directory if it doesn't exist."""
         os.makedirs(self.templates_dir, exist_ok=True)
     
-    def save_template(self, name: str, template: Dict[str, Any]):
+    def save_template(self, name: str, template: Dict[str, Any]) -> None:
         """Save a metadata template.
         
         Args:
@@ -123,14 +126,14 @@ class MetadataTemplate:
 
 
 class BatchProcessor:
-    """Handles batch processing of metadata operations."""
+    """Handles batch processing of files."""
     
-    def __init__(self, processor, chunk_size: int = 10):
-        """Initialize batch processor.
+    def __init__(self, processor: Any, chunk_size: int = 10):
+        """Initialize the batch processor.
         
         Args:
-            processor: MediaProcessor instance
-            chunk_size: Number of files to process in each batch
+            processor: The media processor instance to use
+            chunk_size: Number of files to process in each chunk
         """
         self.processor = processor
         self.chunk_size = chunk_size
@@ -146,7 +149,7 @@ class BatchProcessor:
         Returns:
             Dictionary with processing results
         """
-        results = {
+        results: Dict[str, List[str]] = {
             "successful": [],
             "failed": [],
             "backups": []
@@ -175,6 +178,7 @@ class BatchProcessor:
                     progress_callback((i + 1) / total_files)
                     
             except Exception as e:
-                results["failed"].append((file_path, str(e)))
+                results["failed"].append(file_path)
+                print(f"Error processing {file_path}: {str(e)}")
         
         return results 

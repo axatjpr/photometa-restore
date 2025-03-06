@@ -8,6 +8,7 @@ to media files and applying metadata.
 import os
 import json
 import logging
+import shutil
 from typing import Dict, List, Tuple, Optional, Any, Callable
 from pathlib import Path
 

@@ -7,7 +7,9 @@ This module provides a graphical user interface for the PhotoMeta Restore applic
 import os
 import sys
 import PySimpleGUI as sg
-from typing import Optional
+from typing import Optional, Any, cast, Union
+from PIL import Image, ImageFile
+import io
 
 from .config import get_config
 from .processor import process_directory
@@ -83,16 +85,46 @@ def create_window() -> sg.Window:
     icon_path = get_icon_path()
     
     # Create window with a clean professional look
-    return sg.Window(
+    window = sg.Window(
         'PhotoMeta Restore', 
         layout, 
         finalize=True,
         element_justification='center',
         font=main_font,
         resizable=False,
-        margins=(25, 25),
-        icon=icon_path
+        margins=(25, 25)
     )
+    
+    # Open and resize the icon if available
+    if icon_path:
+        try:
+            icon_image = Image.open(icon_path)
+            # Handle different versions of Pillow by checking for available resampling methods
+            if hasattr(Image, 'LANCZOS'):
+                resample_method = Image.LANCZOS
+            elif hasattr(Image, 'ANTIALIAS'):
+                resample_method = Image.ANTIALIAS
+            else:
+                # Fallback to a resampling method available in all versions
+                # Use Image.Resampling.BICUBIC for newer Pillow versions or fallback to a numeric constant
+                try:
+                    from PIL.Image import Resampling
+                    resample_method = Resampling.BICUBIC
+                except ImportError:
+                    # Older versions of Pillow used integer constants
+                    resample_method = 3  # BICUBIC constant value
+                
+            # Cast to proper type to avoid type errors
+            resized_image: Image.Image = icon_image.resize((64, 64), resample=resample_method)
+            # Convert to bytes for PySimpleGUI
+            bio = io.BytesIO()
+            resized_image.save(bio, format="PNG")
+            icon_data = bio.getvalue()
+            window.set_icon(icon_data)
+        except Exception as e:
+            print(f"Error loading icon: {e}")
+    
+    return window
 
 
 def update_progress(window: sg.Window, progress: float, success_count: int, error_count: int) -> None:
@@ -141,20 +173,6 @@ def run_gui() -> None:
     # Create window with icon
     config = get_config()
     window = create_window()
-    
-    # Set window icon explicitly after creation
-    if icon_path := get_icon_path():
-        try:
-            # On Windows, set the taskbar icon
-            if hasattr(window, 'TKroot'):
-                from PIL import Image, ImageTk
-                
-                img = Image.open(icon_path)
-                img = img.resize((32, 32), Image.LANCZOS)  # Resize to standard size
-                photo = ImageTk.PhotoImage(img)
-                window.TKroot.iconphoto(True, photo)
-        except Exception as e:
-            print(f"Failed to set taskbar icon: {e}")
     
     # Color constants for status messages
     success_color = "#38A169"  # Green

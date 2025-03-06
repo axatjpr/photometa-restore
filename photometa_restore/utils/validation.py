@@ -6,7 +6,7 @@ This module provides validation and error handling functionality for metadata op
 
 import os
 import json
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List, Union
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -16,8 +16,8 @@ from pathlib import Path
 class ValidationResult:
     """Container for validation results."""
     is_valid: bool
-    errors: list[str]
-    warnings: list[str]
+    errors: List[str]
+    warnings: List[str]
 
 
 class MetadataValidator:
@@ -39,14 +39,14 @@ class MetadataValidator:
         'altitude': (None, None)  # No specific range
     }
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the validator."""
         self.reset()
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset validation state."""
-        self._errors = []
-        self._warnings = []
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
     
     def validate_metadata(self, metadata: Dict[str, Any]) -> ValidationResult:
         """Validate metadata structure and content.
@@ -70,49 +70,49 @@ class MetadataValidator:
             self._validate_geo_data(metadata['geoData'])
         
         return ValidationResult(
-            is_valid=len(self._errors) == 0,
-            errors=self._errors.copy(),
-            warnings=self._warnings.copy()
+            is_valid=len(self.errors) == 0,
+            errors=self.errors.copy(),
+            warnings=self.warnings.copy()
         )
     
-    def _validate_required_fields(self, metadata: Dict[str, Any]):
+    def _validate_required_fields(self, metadata: Dict[str, Any]) -> None:
         """Validate presence and types of required fields."""
         for field, expected_type in self.REQUIRED_FIELDS.items():
             if field not in metadata:
-                self._errors.append(f"Missing required field: {field}")
+                self.errors.append(f"Missing required field: {field}")
             elif not isinstance(metadata[field], expected_type):
-                self._errors.append(
+                self.errors.append(
                     f"Invalid type for {field}: expected {expected_type.__name__}, "
                     f"got {type(metadata[field]).__name__}"
                 )
     
-    def _validate_timestamp(self, timestamp_data: Dict[str, Any]):
+    def _validate_timestamp(self, timestamp_data: Dict[str, Any]) -> None:
         """Validate timestamp data."""
         for field in self.TIMESTAMP_FIELDS['photoTakenTime']:
             if field not in timestamp_data:
-                self._errors.append(f"Missing timestamp field: {field}")
+                self.errors.append(f"Missing timestamp field: {field}")
         
         if 'timestamp' in timestamp_data:
             try:
                 timestamp = int(timestamp_data['timestamp'])
                 # Check if timestamp is in reasonable range (1970-2100)
                 if not (0 <= timestamp <= 4102444800):  # Jan 1, 1970 to Jan 1, 2100
-                    self._warnings.append("Timestamp outside reasonable range")
+                    self.warnings.append("Timestamp outside reasonable range")
             except ValueError:
-                self._errors.append("Invalid timestamp format")
+                self.errors.append("Invalid timestamp format")
     
-    def _validate_geo_data(self, geo_data: Dict[str, Any]):
+    def _validate_geo_data(self, geo_data: Dict[str, Any]) -> None:
         """Validate geographic data."""
         for field, (min_val, max_val) in self.GEO_FIELDS.items():
             if field in geo_data:
                 try:
                     value = float(geo_data[field])
                     if min_val is not None and value < min_val:
-                        self._errors.append(f"{field} below minimum value: {value} < {min_val}")
+                        self.errors.append(f"{field} below minimum value: {value} < {min_val}")
                     if max_val is not None and value > max_val:
-                        self._errors.append(f"{field} above maximum value: {value} > {max_val}")
+                        self.errors.append(f"{field} above maximum value: {value} > {max_val}")
                 except ValueError:
-                    self._errors.append(f"Invalid {field} format")
+                    self.errors.append(f"Invalid {field} format")
 
 
 class FileValidator:
